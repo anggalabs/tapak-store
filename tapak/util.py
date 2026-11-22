@@ -1,6 +1,6 @@
 import re
 
-from tapak.config import CATEGORIES
+from tapak.config import CATEGORIES, SIZE_MAX, SIZE_MIN
 
 
 def escape_html(s):
@@ -47,7 +47,13 @@ def read_product(b):
         return "harga harus bilangan bulat >= 0", None
     if stock is None or stock < 0 or stock > 100_000:
         return "stok harus bilangan bulat >= 0", None
-    return None, {"name": name, "brand": brand, "category": category, "price": price, "stock": stock}
+    # Rentang ukuran opsional di API (bawaan 36-46) agar klien lama tetap bekerja; bila dikirim, divalidasi.
+    smin = _num(b.get("size_min")) if b.get("size_min") is not None else SIZE_MIN
+    smax = _num(b.get("size_max")) if b.get("size_max") is not None else SIZE_MAX
+    if smin is None or smax is None or not (SIZE_MIN <= smin <= smax <= SIZE_MAX):
+        return f"ukuran harus {SIZE_MIN}-{SIZE_MAX} dan size_min <= size_max", None
+    return None, {"name": name, "brand": brand, "category": category, "price": price, "stock": stock,
+                  "size_min": smin, "size_max": smax}
 
 
 def rupiah(n):

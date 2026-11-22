@@ -1,13 +1,13 @@
 import json
 import re
 
-from helpers import T
+from helpers import N_PRODUK, T
 
 
 def test_health_dan_produk():
     t = T()
     assert t.call("/api/health")[1]["status"] == "ok"
-    assert len(t.call("/api/products")[1]) == 24
+    assert len(t.call("/api/products")[1]) == N_PRODUK
 
 
 def test_login():
@@ -19,7 +19,7 @@ def test_login():
 def test_sqli():
     q = "/api/products/search?q=" + "%27%20OR%20%271%27%3D%271"
     assert len(T(VULN_SQLI=False).call(q)[1]) == 0
-    assert len(T(VULN_SQLI=True).call(q)[1]) == 24
+    assert len(T(VULN_SQLI=True).call(q)[1]) == N_PRODUK
 
 
 def test_idor():
@@ -166,7 +166,7 @@ def test_crud_hak_akses():
     assert t.call("/admin/products", "POST", body, b)[0] == 403
     assert t.call("/admin/products/1", "DELETE", token=b)[0] == 403
     assert t.call("/admin/products/1", "PUT", body, b)[0] == 403
-    assert len(t.call("/api/products")[1]) == 24
+    assert len(t.call("/api/products")[1]) == N_PRODUK
     t = T(VULN_ADMIN=True)
     assert t.call("/admin/products", "POST", body)[0] == 201
     assert re.search(r"event=PRODUCT_CREATE .*by=anonymous", t.log_text)
@@ -180,4 +180,14 @@ def test_dashboard():
     assert t.call("/admin/stats")[0] == 401
     st, j = t.call("/admin/stats", token=t.login("admin", "Admin#2026"))
     assert st == 200
-    assert j == dict(users=4, products=24, orders=1, low_stock=0, revenue=549000 * 2)
+    assert j == dict(users=4, products=N_PRODUK, orders=1, low_stock=0, revenue=549000 * 2)
+
+
+def test_api_admin_ukuran_produk():
+    t = T(VULN_ADMIN=True)
+    body = dict(name="X", brand="B", category="lari", price=1000, stock=1)
+    st, j = t.call("/admin/products", "POST", body)
+    assert st == 201 and (j["size_min"], j["size_max"]) == (36, 46)
+    assert t.call("/admin/products", "POST", {**body, "size_min": 44, "size_max": 40})[0] == 400
+    assert t.call("/admin/products", "POST", {**body, "size_min": 30})[0] == 400
+    assert t.call("/admin/products", "POST", {**body, "size_min": 39, "size_max": 42})[0] == 201

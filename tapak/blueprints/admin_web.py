@@ -32,7 +32,7 @@ def admin_required(f):
             return redirect(url_for("auth.login", next=request.path))
         if u.role != "admin":
             L("WARNING", "ADMIN_ACCESS", **base, user=u.username, result="DENIED", reason="not_admin")
-            abort(403)
+            abort(404)  # 404, bukan 403: pengguna biasa tidak diberi tahu bahwa panel ada
         L("INFO", "ADMIN_ACCESS", **base, user=u.username, result="GRANTED")
         return f(*a, **k)
     return wrapper
@@ -40,7 +40,8 @@ def admin_required(f):
 
 def fill_product(p, form):
     p.name, p.brand = form.name.data.strip(), (form.brand.data or "").strip()
-    p.category, p.price, p.stock = form.category.data, form.price.data, form.stock.data or 0
+    p.category, p.price, p.stock = form.category.data, form.price.data, form.stock.data
+    p.size_min, p.size_max = form.size_min.data, form.size_max.data
     p.description = (form.description.data or "").strip() or None
 
 
@@ -182,6 +183,11 @@ def order_decide(oid, action):
         flash("Hanya pesanan berstatus 'Menunggu verifikasi' yang bisa diputuskan.", "err")
     else:
         o.status = "paid" if action == "approve" else "rejected"
+        if o.status == "rejected":  # kembalikan stok yang dipesan
+            for it in o.items:
+                p = db.session.get(Product, it.product_id)
+                if p:
+                    p.stock += it.qty
         db.session.commit()
         L("INFO", "PAYMENT_DECISION", order=o.id, result=o.status, by=g.actor, ip=client_ip())
         flash(f"Pesanan #{o.id} {'disetujui (lunas)' if action == 'approve' else 'ditolak'}.", "ok")

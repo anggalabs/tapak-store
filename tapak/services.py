@@ -46,18 +46,25 @@ def create_order(user, raw_items, status="pending"):
     vuln = current_app.config["VULN"]
     if not isinstance(raw_items, list):
         raw_items = []
-    items, total = [], 0
+    items, total, need = [], 0, {}
     for it in raw_items:
         it = it if isinstance(it, dict) else {}
         p = db.session.get(Product, parse_int(it.get("product_id")))
         qty, size = parse_int(it.get("qty")), parse_int(it.get("size"))
-        if not p or qty < 1 or size < 36 or size > 46:
-            raise ApiError(400, "item tidak valid (ukuran 36-46)")
+        if not p or qty < 1 or qty > 10:
+            raise ApiError(400, "item tidak valid (produk tidak ada atau jumlah 1-10)")
+        if not p.has_size(size):
+            raise ApiError(400, f"ukuran {size} tidak tersedia untuk {p.name} (tersedia {p.size_min}-{p.size_max})")
+        need[p.id] = need.get(p.id, 0) + qty
+        if need[p.id] > p.stock:
+            raise ApiError(400, f"stok {p.name} tidak cukup (tersisa {p.stock})")
         unit = parse_int(it["price"]) if vuln["VULN_PRICE"] and it.get("price") is not None else p.price
         items.append(OrderItem(product_id=p.id, qty=qty, size=size, unit_price=unit))
         total += unit * qty
     if not items:
         raise ApiError(400, "keranjang kosong")
+    for pid, qty in need.items():  # stok dikurangi saat pesanan dibuat; dikembalikan bila pembayaran ditolak
+        db.session.get(Product, pid).stock -= qty
     o = Order(user_id=user.id, total=total, status=status, items=items)
     db.session.add(o)
     db.session.commit()

@@ -1,12 +1,15 @@
 {% extends "base.html" %}
-{% from "_macros.html" import field, csrf, thumb %}
+{% from "_macros.html" import field, csrf, thumb, req_note %}
 {% block title %}{{ 'Ubah' if p else 'Tambah' }} produk — Panel admin{% endblock %}
 {% block content %}
 <h1 class="page-title">{{ 'Ubah produk' if p else 'Produk baru' }}</h1>{% include "admin/_nav.html" %}
 <form method="post" enctype="multipart/form-data" class="panel stack" data-validate>
-  {{ csrf() }}{{ field(form.name) }}{{ field(form.brand) }}{{ field(form.category) }}{{ field(form.price) }}{{ field(form.stock) }}{{ field(form.description) }}
+  {{ req_note() }}{{ csrf() }}{{ field(form.name) }}{{ field(form.brand) }}{{ field(form.category) }}{{ field(form.price) }}
+  {{ field(form.stock, "Isi 0 bila stok habis.") }}
+  <div class="row2">{{ field(form.size_min) }}{{ field(form.size_max, "Rentang 36-46 (EU). Pembeli hanya bisa memilih ukuran di rentang ini.") }}</div>
+  {{ field(form.description) }}
   {% if p and p.image %}<div class="thumb-cell">{{ thumb(p) }}</div>{% endif %}
-  {{ field(form.image) }}
+  {{ field(form.image, "Bila kosong, toko menampilkan ilustrasi sepatu." if not (p and p.image) else "Kosongkan bila tidak ingin mengganti foto.") }}
   <div class="actions"><button class="btn solid" type="submit">Simpan</button><a class="btn" href="{{ url_for('panel.products') }}">Batal</a></div>
 </form>
 {% endblock %}

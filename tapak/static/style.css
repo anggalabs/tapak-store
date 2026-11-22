@@ -247,3 +247,17 @@ td .pill, .page > p .pill { margin-left: 0; }
 .cats a { padding: .4rem .45rem; font-size: .85rem; }
 .tool { padding-left: .5rem; padding-right: .5rem; }
 @media (max-width: 1280px) { .cats { order: 3; flex-basis: 100%; } .search { margin-left: auto; } }
+
+/* Penanda kolom wajib/opsional */
+.req { color: var(--err); font-weight: 800; }
+.opt { color: var(--mute); font-weight: 400; font-size: .8rem; }
+.hint { color: var(--mute); font-size: .8rem; }
+.req-note { margin: 0 0 .5rem; font-size: .85rem; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+@media (max-width: 520px) { .row2 { grid-template-columns: 1fr; } }
+.size-field.has-err .size-opt span { border-color: var(--err); }
+.qty-field .input { max-width: 120px; }
+.stack .field > label { display: block; }
+.field > label .req, .field > label .opt { margin-left: 4px; }
+.opt { text-transform: none; letter-spacing: 0; }
+.row2 { align-items: start; }

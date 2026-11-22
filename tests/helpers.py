@@ -2,7 +2,9 @@ import tempfile
 
 from tapak import create_app
 from tapak.extensions import db
-from tapak.seed import seed
+from tapak.seed import PRODUCTS, PRODUCTS_2, seed, sync_products
+
+N_PRODUK = len(PRODUCTS) + len(PRODUCTS_2)
 
 OFF = dict(VULN_SQLI=False, VULN_IDOR=False, VULN_XSS=False, VULN_PRICE=False, VULN_ADMIN=False)
 
@@ -18,6 +20,7 @@ class T:
         with self.app.app_context():
             db.create_all()
             seed()
+            sync_products()
         self.client = self.app.test_client()
 
     def new_client(self):

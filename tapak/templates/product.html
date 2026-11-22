@@ -10,15 +10,20 @@
     <div class="sub">{{ p.brand }}</div>
     <div class="m-price">{{ p.price|rupiah }}</div>
     <p>{{ p.description or 'Belum ada deskripsi.' }}</p>
-    <p class="muted">Stok: {{ p.stock }}</p>
+    <p class="muted">Stok: {{ p.stock }} · Ukuran tersedia: {{ p.size_min }}-{{ p.size_max }} (EU)</p>
     {% if p.stock > 0 %}
-    <form method="post" action="{{ url_for('shop.cart_add') }}" class="stack">
+    <form method="post" action="{{ url_for('shop.cart_add') }}" class="stack" data-validate>
       {{ csrf() }}<input type="hidden" name="product_id" value="{{ p.id }}">
-      <div class="m-label" id="size-label">Pilih ukuran</div>
-      <div class="size-grid" role="radiogroup" aria-labelledby="size-label">
-        {% for s in range(36, 47) %}<label class="size-opt"><input type="radio" name="size" value="{{ s }}" required><span>{{ s }}</span></label>{% endfor %}
+      <div class="field size-field">
+        <div class="m-label" id="size-label">Pilih ukuran <span class="req" aria-hidden="true">*</span></div>
+        <div class="size-grid" role="radiogroup" aria-labelledby="size-label">
+          {% for s in p.sizes %}<label class="size-opt"><input type="radio" name="size" value="{{ s }}" required data-missing="Pilih ukuran terlebih dahulu."><span>{{ s }}</span></label>{% endfor %}
+        </div>
       </div>
-      <input type="hidden" name="qty" value="1">
+      <div class="field qty-field">
+        <label for="qty">Jumlah <span class="req" aria-hidden="true">*</span></label>
+        <input class="input" id="qty" name="qty" type="number" value="1" min="1" max="{{ [10, p.stock]|min }}" step="1" required>
+      </div>
       <button class="btn solid wide" type="submit">Tambah ke keranjang</button>
     </form>
     {% else %}<p class="flash err">Stok habis.</p>{% endif %}
@@ -32,7 +37,7 @@
     <p>{{ r.comment|safe }}</p></div>
   {% else %}<p class="muted">Belum ada ulasan.</p>{% endfor %}
   {% if me %}
-  <form method="post" action="{{ url_for('shop.add_review', pid=p.id) }}" class="stack">
+  <form method="post" action="{{ url_for('shop.add_review', pid=p.id) }}" class="stack" data-validate>
     {{ csrf() }}{{ field(review_form.rating) }}{{ field(review_form.comment) }}
     <button class="btn solid" type="submit">Kirim ulasan</button>
   </form>
