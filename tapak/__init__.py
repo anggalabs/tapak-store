@@ -6,7 +6,7 @@ lingkungan lab terisolasi. JANGAN dipasang di jaringan produksi atau dibuka ke i
 from flask import Flask, jsonify, render_template, request
 from werkzeug.exceptions import HTTPException
 
-from tapak.config import CATEGORIES, MIGRATIONS_DIR, load_config
+from tapak.config import CATEGORIES, DB_HELP, MIGRATIONS_DIR, load_config
 from tapak.errors import ApiError
 from tapak.illustration import shoe_svg, tint
 from tapak.extensions import csrf, db, migrate
@@ -14,10 +14,20 @@ from tapak.logs import L, client_ip, make_logger
 from tapak.util import rupiah
 
 
+def check_database_url(cfg):
+    """Aplikasi berjalan di MySQL. SQLite hanya diizinkan untuk tes otomatis (TESTING=True)."""
+    uri = cfg.get("SQLALCHEMY_DATABASE_URI")
+    if not uri:
+        raise RuntimeError(DB_HELP)
+    if not uri.startswith("mysql") and not cfg.get("TESTING"):
+        raise RuntimeError("Basis data harus MySQL, bukan " + uri.split(":", 1)[0] + ". " + DB_HELP)
+
+
 def create_app(overrides=None):
     app = Flask(__name__)
     app.config.from_mapping(load_config())
     app.config.update(overrides or {})
+    check_database_url(app.config)
     app.json.ensure_ascii = False
     app.json.sort_keys = False
     app.extensions["tapak_log"] = app.config.get("LOG") or make_logger(app.config["LOG_FILE"])

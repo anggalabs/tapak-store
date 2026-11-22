@@ -1,0 +1,27 @@
+# MySQL 8.4 untuk uji lokal di laptop, versi sama dengan db-primary di lab.
+# Jalankan:  docker compose up -d      Hentikan:  docker compose down
+# Data tersimpan di volume "tapak-mysql" dan tetap ada setelah container dihentikan.
+# Hapus seluruh data (mulai dari nol):  docker compose down -v
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: tapak-mysql-lokal
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootlokal2026
+      MYSQL_DATABASE: toko
+      MYSQL_USER: toko
+      MYSQL_PASSWORD: tokolokal2026
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    ports:
+      - "127.0.0.1:3306:3306"   # hanya bisa diakses dari laptop ini
+    volumes:
+      - tapak-mysql:/var/lib/mysql
+      - ./db/init-tes.sql:/docker-entrypoint-initdb.d/init-tes.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-prootlokal2026"]
+      interval: 5s
+      retries: 20
+
+volumes:
+  tapak-mysql:

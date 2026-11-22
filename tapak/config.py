@@ -8,10 +8,16 @@ SIZE_MIN, SIZE_MAX = 36, 46  # batas ukuran yang dijual toko (EU)
 MIGRATIONS_DIR = os.path.join(ROOT, "migrations")
 
 
+DB_HELP = ("DATABASE_URL wajib diisi dengan alamat MySQL, contoh: "
+           "mysql://toko:SANDI@127.0.0.1:3306/toko (lihat README bagian 3). "
+           "Karakter khusus di sandi harus di-URL-encode, misalnya # menjadi %23 dan @ menjadi %40.")
+
+
 def normalize_db_url(url):
-    """Terima format lama (mysql://, sqlite:./x.db, sqlite::memory:) dan ubah ke URL SQLAlchemy."""
+    """Ubah format lama (mysql://, sqlite::memory:) ke URL SQLAlchemy. Tidak ada nilai bawaan:
+    bila DATABASE_URL kosong, aplikasi menolak start (lihat create_app), bukan diam-diam memakai SQLite."""
     if not url:
-        return "sqlite:///" + os.path.join(ROOT, "dev.db")
+        return None
     if url.startswith("mysql://"):
         return "mysql+pymysql://" + url[len("mysql://"):] + ("" if "?" in url else "?charset=utf8mb4")
     if url in ("sqlite::memory:", "sqlite:memory:"):
@@ -39,6 +45,6 @@ def load_config(env=None):
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_SECURE=env.get("COOKIE_SECURE") == "1",
     )
-    if not uri.startswith("sqlite"):
+    if uri and uri.startswith("mysql"):
         cfg["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True, "pool_recycle": 280}
     return cfg
