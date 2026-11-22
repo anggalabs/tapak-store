@@ -26,9 +26,9 @@ pesanan, pengguna, dan laporan penjualan. Semua aktivitas penting ditulis ke log
 | Hal | Isi |
 |---|---|
 | Bahasa dan kerangka | Python 3, Flask (blueprint), SQLAlchemy, Flask-Migrate, WTForms, Jinja2 |
-| Database | MySQL di VM `db-primary` (192.168.30.10); SQLite untuk uji lokal |
+| Database | MySQL: di lab memakai VM `db-primary` (192.168.30.10), di laptop memakai MySQL lokal. SQLite hanya untuk tes otomatis |
 | Server | Container Docker `tapak` di VM `srv-web` (192.168.10.10), di belakang WAF ModSecurity |
-| Tes otomatis | 45 tes pytest (`tests/`) |
+| Tes otomatis | 45 tes pytest, bisa dijalankan di SQLite (cepat) atau MySQL (`tests/`) |
 
 Akun awal (kata sandi sengaja lemah untuk uji brute force):
 
@@ -71,25 +71,63 @@ Akun awal (kata sandi sengaja lemah untuk uji brute force):
 
 ## 3. Menjalankan di laptop (uji lokal)
 
-Diketik di **terminal di folder proyek** (PowerShell di Windows, atau terminal Linux).
+Aplikasi **hanya berjalan dengan MySQL**. Kalau `DATABASE_URL` kosong atau bukan MySQL, web menolak start dan
+menampilkan pesan yang menjelaskan cara mengisinya. SQLite hanya dipakai oleh tes otomatis.
 
-```bash
-pip install -r requirements-dev.txt
-python -m pytest -q          # harus: 45 passed
+Laptop tidak bisa memakai MySQL lab (db-primary), karena firewall-nya hanya membuka port 3306 untuk srv-web
+dan backup-srv. Untuk uji lokal, jalankan MySQL di laptop sendiri.
+
+Semua perintah di bawah diketik di **PowerShell, di folder proyek** (`tapak-store`).
+
+### 3.1 Siapkan Python (sekali saja)
+
+```powershell
+py -3.12 -m venv .venv                 # atau path lengkap python.exe Windows, BUKAN Python MSYS2
+.\.venv\Scripts\Activate.ps1           # prompt berubah menjadi (.venv)
+python -m pip install -r requirements-dev.txt
 ```
 
-Menjalankan web dengan database SQLite sementara:
+### 3.2 Siapkan MySQL lokal (pilih salah satu, sekali saja)
 
-```bash
-# Linux / Git Bash
-DATABASE_URL=sqlite:./dev.db python wsgi.py
+**Pilihan A: Docker Desktop.** Versinya sama dengan lab (MySQL 8.4).
 
-# PowerShell
-$env:DATABASE_URL="sqlite:./dev.db"; python wsgi.py
+```powershell
+docker compose up -d                   # tunggu sampai `docker compose ps` menulis (healthy)
 ```
 
-Buka `http://localhost:5000`. Saat pertama dijalankan, aplikasi membuat tabel, mengisi akun dan produk awal,
-lalu menambahkan produk baru yang belum ada.
+**Pilihan B: MySQL Installer 8.4 untuk Windows, atau XAMPP/Laragon (MariaDB).**
+Pastikan servis MySQL berjalan, lalu buat basis data dan user:
+
+```powershell
+Get-Content db\init-lokal.sql | mysql -u root -p
+```
+
+Kedua pilihan membuat basis data `toko` dan `toko_test`, serta user `toko` dengan sandi `tokolokal2026`.
+Ini sandi khusus laptop, jangan dipakai di lab.
+
+### 3.3 Isi `.env` dan jalankan
+
+```powershell
+copy .env.lokal.example .env           # sekali saja; .env tidak ikut di-commit
+python wsgi.py
+```
+
+Saat pertama kali, terminal menampilkan `Running upgrade ... -> 0003`, `produk baru ditambahkan: 12`, dan
+`seed selesai`. Buka `http://localhost:5000`. Untuk menghentikan, tekan `Ctrl + C`.
+
+Sesi berikutnya cukup dua perintah: `.\.venv\Scripts\Activate.ps1` lalu `python wsgi.py`.
+Bila memakai Docker, pastikan container MySQL menyala (`docker compose up -d`).
+
+### 3.4 Tes otomatis
+
+```powershell
+python -m pytest -q                                       # cepat, SQLite di memori: 45 passed
+$env:TEST_DATABASE_URL="mysql://toko:tokolokal2026@127.0.0.1:3306/toko_test"
+python -m pytest -q                                       # tes yang sama di MySQL sungguhan
+Remove-Item Env:TEST_DATABASE_URL
+```
+
+Tes MySQL **menghapus semua tabel** di basis data tujuan. Karena itu selalu pakai `toko_test`, jangan `toko`.
 
 ## 4. Memasang atau memperbarui di srv-web
 
@@ -217,6 +255,10 @@ tapak/
   static/             style.css, app.js (validasi di browser)
 migrations/versions/  0001 skema awal · 0002 kolom fitur web · 0003 rentang ukuran produk
 tests/                tes pytest
+db/                   SQL untuk MySQL lokal (user toko, basis data toko dan toko_test)
+docker-compose.yml    MySQL 8.4 lokal untuk laptop (bukan untuk srv-web)
+.env.example          contoh .env untuk srv-web
+.env.lokal.example    contoh .env untuk laptop
 ```
 
 ## 9. Riwayat perubahan
@@ -235,3 +277,6 @@ tests/                tes pytest
   - Pesan galat keranjang tidak menjelaskan penyebabnya.
 - 12 produk baru, termasuk kategori baru **formal**. Total katalog 36 produk.
 - Tes bertambah dari 39 menjadi 45.
+- Aplikasi wajib memakai MySQL. Cadangan diam-diam ke SQLite saat `DATABASE_URL` kosong dihapus. Ditambahkan
+  MySQL lokal untuk laptop (docker-compose atau `db/init-lokal.sql`), pembacaan `.env` otomatis, dan
+  opsi menjalankan seluruh tes di MySQL. Semua 45 tes lulus di SQLite dan di MySQL.
