@@ -38,7 +38,11 @@ def login():
             session.clear()
             session["uid"] = u.id
             flash(f"Selamat datang, {u.username}.", "ok")
-            return redirect(safe_next(request.args.get("next")))
+            nxt = request.args.get("next")
+            if u.role == "admin":  # admin langsung ke panel, kecuali tujuan awalnya memang halaman panel
+                target = safe_next(nxt, "panel.dashboard")
+                return redirect(target if target.startswith("/panel") else url_for("panel.dashboard"))
+            return redirect(safe_next(nxt))
         flash("Username atau kata sandi salah, atau akun dinonaktifkan.", "err")
     return render_template("auth/login.html", form=form), (401 if form.is_submitted() and form.errors == {} else 200)
 

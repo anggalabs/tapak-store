@@ -31,12 +31,23 @@ class Product(db.Model):
     category = db.Column(db.String(30), nullable=False, default="", server_default="")
     price = db.Column(db.Integer, nullable=False)
     stock = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+    # Rentang ukuran yang tersedia untuk produk ini (EU 36-46). Data lama otomatis 36-46.
+    size_min = db.Column(db.Integer, nullable=False, default=36, server_default="36")
+    size_max = db.Column(db.Integer, nullable=False, default=46, server_default="46")
     description = db.Column(db.Text)
     image = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, default=now)
 
     def to_dict(self):
-        return dict(id=self.id, name=self.name, brand=self.brand, category=self.category, price=self.price, stock=self.stock)
+        return dict(id=self.id, name=self.name, brand=self.brand, category=self.category, price=self.price, stock=self.stock,
+                    sizes=[self.size_min, self.size_max])
+
+    @property
+    def sizes(self):
+        return list(range(self.size_min, self.size_max + 1))
+
+    def has_size(self, size):
+        return self.size_min <= size <= self.size_max
 
 
 class Order(db.Model):

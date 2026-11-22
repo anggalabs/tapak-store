@@ -68,9 +68,13 @@ def create_app(overrides=None):
 
 
 def init_database(app):
-    """Jalankan migrasi (idempoten) lalu isi data awal bila kosong. Dipanggil saat start (wsgi.py)."""
+    """Jalankan migrasi (idempoten), isi data awal bila kosong, lalu tambahkan produk baru yang belum ada.
+    Dipanggil saat start (wsgi.py). Mengembalikan True bila data awal dibuat."""
     from flask_migrate import upgrade
-    from tapak.seed import seed
+    from tapak.seed import seed, sync_products
     with app.app_context():
         upgrade(directory=MIGRATIONS_DIR)
-        return seed()
+        created = seed()
+        added = sync_products()
+        print(f"produk baru ditambahkan: {added}", flush=True)
+        return created

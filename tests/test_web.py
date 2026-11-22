@@ -1,7 +1,7 @@
 import io
 import re
 
-from helpers import T
+from helpers import N_PRODUK, T
 
 from tapak.extensions import db
 from tapak.models import Order, Product, User
@@ -73,13 +73,13 @@ def test_akun_nonaktif_tidak_bisa_masuk():
 def test_katalog_filter_harga():
     t = T()
     c = t.web()
-    assert "24 produk ditemukan" in html(c.get("/products"))
+    assert f"{N_PRODUK} produk ditemukan" in html(c.get("/products"))
     r = html(c.get("/products?min_price=500000&max_price=700000"))
     assert "Langkah Runner Pro" in r and "Rimba Trail X" in r and "Bayu Street Low" not in r
     assert "Harga maks harus" in html(c.get("/products?min_price=700000&max_price=500000"))
     assert "Rimba Trail X" in html(c.get("/products?q=rimba&category=gunung"))
     assert "0 produk ditemukan" in html(c.get("/products?q=%27+OR+%271%27%3D%271"))  # SQLi di web: tidak rentan (ORM)
-    assert "Halaman 1 dari 2" in html(c.get("/products"))
+    assert "Halaman 1 dari 3" in html(c.get("/products"))  # 36 produk, 12 per halaman
     assert c.get("/").status_code == 200 and c.get("/products/1").status_code == 200
     assert c.get("/products/9999").status_code == 404
 
@@ -88,7 +88,7 @@ def test_katalog_filter_harga():
 def test_panel_admin_hak_akses():
     t = T()
     assert t.new_client().get("/panel/").status_code == 302
-    assert t.web("budi", "password123").get("/panel/").status_code == 403
+    assert t.web("budi", "password123").get("/panel/").status_code == 404
     assert t.web("admin", "Admin#2026").get("/panel/").status_code == 200
     assert re.search(r"WARNING event=ADMIN_ACCESS .*user=anonymous result=DENIED reason=unauthenticated", t.log_text)
     assert re.search(r"WARNING event=ADMIN_ACCESS .*user=budi result=DENIED reason=not_admin", t.log_text)
@@ -99,7 +99,8 @@ def test_panel_admin_hak_akses():
 def test_panel_crud_produk_dan_gambar():
     t = T()
     a = t.web("admin", "Admin#2026")
-    form = dict(name="Uji Web", brand="Bayu", category="lari", price="123000", stock="5", description="deskripsi")
+    form = dict(name="Uji Web", brand="Bayu", category="lari", price="123000", stock="5", size_min="38", size_max="44",
+                description="deskripsi")
     r = a.post("/panel/products/new", data={**form, "image": (io.BytesIO(PNG), "foto.png")}, content_type="multipart/form-data")
     assert r.status_code == 302
     with t.app.app_context():
@@ -122,7 +123,7 @@ def test_panel_crud_produk_dan_gambar():
         assert db.session.get(Product, pid) is None
     assert re.search(r'event=PRODUCT_CREATE id=\d+ name="Uji Web" by=admin', t.log_text)
     assert re.search(r"WARNING event=PRODUCT_DELETE .*by=admin", t.log_text)
-    assert t.web("budi", "password123").post("/panel/products/1/delete").status_code == 403
+    assert t.web("budi", "password123").post("/panel/products/1/delete").status_code == 404
 
 
 # ---- alur pembelian: keranjang -> pesanan -> bukti bayar -> verifikasi -> laporan ----
@@ -151,7 +152,7 @@ def test_alur_pembelian_dan_laporan():
     assert s.get(f"/orders/{oid}").status_code == 403 and s.get(f"/orders/{oid}/proof").status_code == 403
     assert re.search(r"WARNING event=ORDER_ACCESS_DENIED order=\d+ user=sari", t.log_text)
     # klien biasa tidak bisa menyetujui; admin bisa
-    assert b.post(f"/panel/orders/{oid}/approve").status_code == 403
+    assert b.post(f"/panel/orders/{oid}/approve").status_code == 404
     a = t.web("admin", "Admin#2026")
     assert "Menunggu verifikasi" in html(a.get("/panel/orders"))
     assert a.post(f"/panel/orders/{oid}/approve").status_code == 302
@@ -245,7 +246,7 @@ def test_ilustrasi_svg_dan_log_search_tidak_berisik():
     c.get("/products?q=rimba")
     assert any("event=SEARCH q=rimba" in l for l in t.logs)
     a = t.web("admin", "Admin#2026")
-    a.post("/panel/products/new", data=dict(name="Berfoto", brand="Bayu", category="lari", price="1000", stock="1",
+    a.post("/panel/products/new", data=dict(name="Berfoto", brand="Bayu", category="lari", price="1000", stock="1", size_min="36", size_max="46",
                                             image=(io.BytesIO(PNG), "f.png")), content_type="multipart/form-data")
     assert '<img class="photo"' in html(c.get("/products?q=Berfoto"))
 
@@ -266,3 +267,88 @@ def test_laporan_pesanan_lama_tanpa_tanggal():
     page = html(a.get("/panel/reports"))
     assert "(tanpa tanggal)" in page and "None" not in page
     assert "(tanpa tanggal),1,5000" in a.get("/panel/reports/export?format=csv").get_data(as_text=True)
+
+
+# ---- catatan dosen (November 2026) ----
+def test_admin_login_langsung_ke_panel():
+    t = T()
+    r = t.new_client().post("/login", data=dict(username="admin", password="Admin#2026"))
+    assert r.status_code == 302 and r.headers["Location"] == "/panel/"
+    # tujuan awal di luar panel diabaikan untuk admin; tujuan di dalam panel tetap dihormati
+    assert t.new_client().post("/login?next=/orders", data=dict(username="admin", password="Admin#2026")).headers["Location"] == "/panel/"
+    assert t.new_client().post("/login?next=/panel/orders", data=dict(username="admin", password="Admin#2026")).headers["Location"] == "/panel/orders"
+    assert t.new_client().post("/login?next=//evil.example/", data=dict(username="admin", password="Admin#2026")).headers["Location"] == "/panel/"
+    # pelanggan tetap ke beranda
+    assert t.new_client().post("/login", data=dict(username="budi", password="password123")).headers["Location"] == "/"
+
+
+def test_kolom_wajib_dan_opsional_di_form_produk():
+    t = T()
+    a = t.web("admin", "Admin#2026")
+    page = html(a.get("/panel/products/new"))
+    assert 'required="None"' not in page
+    req = set(re.findall(r'<(?:input|select|textarea)[^>]*\bname="(\w+)"[^>]*\brequired', page))
+    assert req == {"name", "brand", "category", "price", "stock", "size_min", "size_max"}
+    assert page.count("(opsional)") == 2  # deskripsi, foto
+    # minimal: hanya kolom wajib, opsional dikosongkan -> berhasil; harga dan stok 0 boleh
+    ok = dict(name="Minimal", brand="Bayu", category="lari", price="0", stock="0", size_min="38", size_max="42")
+    assert a.post("/panel/products/new", data=ok).status_code == 302
+    for k in ["name", "brand", "price", "stock", "size_min", "size_max"]:
+        r = a.post("/panel/products/new", data={**ok, "name": "Gagal", k: ""})
+        assert r.status_code == 200, k
+    assert "Harus berupa bilangan bulat" in html(a.post("/panel/products/new", data={**ok, "stock": "abc"}))
+    with t.app.app_context():
+        assert not db.session.scalars(db.select(Product).filter_by(name="Gagal")).first()
+
+
+def test_validasi_ukuran_produk():
+    t = T()
+    a = t.web("admin", "Admin#2026")
+    base = dict(name="Ukuran", brand="Bayu", category="lari", price="1000", stock="5")
+    for lo, hi in [("35", "40"), ("38", "47"), ("44", "40")]:
+        assert a.post("/panel/products/new", data={**base, "size_min": lo, "size_max": hi}).status_code == 200, (lo, hi)
+    assert "Ukuran terbesar harus" in html(a.post("/panel/products/new", data={**base, "size_min": "44", "size_max": "40"}))
+    assert a.post("/panel/products/new", data={**base, "size_min": "39", "size_max": "42"}).status_code == 302
+    with t.app.app_context():
+        pid = db.session.scalars(db.select(Product).filter_by(name="Ukuran")).one().id
+    page = html(t.web().get(f"/products/{pid}"))
+    assert page.count('type="radio" name="size"') == 4 and 'value="38"' not in page and 'value="43"' not in page
+    c = t.web()
+    c.post("/cart/add", data=dict(product_id=pid, size=43, qty=1))
+    assert "tidak tersedia" in html(c.get(f"/products/{pid}"))
+    assert c.post("/cart/add", data=dict(product_id=pid, size=40, qty=1)).headers["Location"] == "/cart"
+    # API juga menolak ukuran di luar rentang produk
+    b = t.login("budi", "password123")
+    st, j = t.call("/api/orders", "POST", {"items": [{"product_id": pid, "qty": 1, "size": 45}]}, b)
+    assert st == 400 and "tidak tersedia" in j["error"]
+
+
+def test_stok_dicek_dikurangi_dan_dikembalikan():
+    t = T()
+    a = t.web("admin", "Admin#2026")
+    a.post("/panel/products/new", data=dict(name="Langka", brand="Bayu", category="lari", price="1000", stock="2",
+                                            size_min="36", size_max="46"))
+    with t.app.app_context():
+        pid = db.session.scalars(db.select(Product).filter_by(name="Langka")).one().id
+    c = t.web("budi", "password123")
+    c.post("/cart/add", data=dict(product_id=pid, size=40, qty=2))
+    c.post("/cart/add", data=dict(product_id=pid, size=41, qty=1))
+    assert "Stok tidak cukup" in html(c.get("/cart"))
+    assert c.post("/checkout").status_code == 302
+    with t.app.app_context():
+        assert db.session.get(Product, pid).stock == 0
+        o = db.session.scalars(db.select(Order).order_by(Order.id.desc())).first()
+        o.status = "waiting"
+        db.session.commit()
+        oid = o.id
+    a.post(f"/panel/orders/{oid}/reject")
+    with t.app.app_context():
+        assert db.session.get(Product, pid).stock == 2
+    b = t.login("budi", "password123")
+    assert t.call("/api/orders", "POST", {"items": [{"product_id": pid, "qty": 3, "size": 40}]}, b)[0] == 400
+
+
+def test_produk_tambahan_tersedia():
+    t = T()
+    r = html(t.web().get("/products?category=formal"))
+    assert "Nusa Oxford Klasik" in r and "3 produk ditemukan" in r

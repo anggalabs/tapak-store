@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% from "_macros.html" import field, csrf %}
+{% from "_macros.html" import field, csrf, req_note %}
 {% block title %}Daftar — TAPAK{% endblock %}
 {% block content %}
 <section class="auth-forms panel">
   <h2>Buat akun</h2>
   <form method="post" class="stack" data-validate>
-    {{ csrf() }}{{ field(form.username) }}{{ field(form.email) }}{{ field(form.password) }}{{ field(form.confirm) }}
+    {{ req_note() }}{{ csrf() }}{{ field(form.username) }}{{ field(form.email) }}{{ field(form.password) }}{{ field(form.confirm) }}
     <button class="btn solid wide" type="submit">Daftar</button>
   </form>
   <p class="muted">Sudah punya akun? <a href="{{ url_for('auth.login') }}">Masuk</a></p>

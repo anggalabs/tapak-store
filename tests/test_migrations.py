@@ -4,6 +4,7 @@ import pytest
 from sqlalchemy import create_engine, inspect
 
 from tapak import create_app, init_database
+from tapak.seed import PRODUCTS_2
 
 LEGACY = [
     "CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, username VARCHAR(50) NOT NULL UNIQUE, password_hash VARCHAR(255) NOT NULL, role VARCHAR(20) NOT NULL DEFAULT 'client')",
@@ -40,7 +41,12 @@ def test_migrasi_db_lama_mempertahankan_data(tmp_path):
     assert init_database(app) is False  # sudah ada pengguna -> tidak di-seed
     con = sqlite3.connect(f)
     assert con.execute("SELECT username, role, is_active FROM users").fetchall() == [("lama", "client", 1)]
-    assert con.execute("SELECT name, price FROM products").fetchall() == [("Sepatu Lama", 100000)]
+    # Produk lama tetap utuh dan mendapat rentang ukuran bawaan 36-46; produk baru ditambahkan di belakangnya.
+    rows = con.execute("SELECT name, price, stock, size_min, size_max FROM products ORDER BY id").fetchall()
+    assert rows[0] == ("Sepatu Lama", 100000, 3, 36, 46)
+    assert [r[0] for r in rows[1:]] == [p[0] for p in PRODUCTS_2]
+    init_database(app)  # dijalankan lagi: produk baru tidak digandakan
+    assert con.execute("SELECT COUNT(*) FROM products").fetchone()[0] == 1 + len(PRODUCTS_2)
     assert con.execute("SELECT status, payment_proof FROM orders").fetchall() == [("paid", None)]
     assert "image" in {r[1] for r in con.execute("PRAGMA table_info(products)")}
-    assert con.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0002"
+    assert con.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0003"

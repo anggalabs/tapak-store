@@ -1,10 +1,17 @@
-{% macro field(f) %}
+{# Wajib/opsional diambil dari validator server (flag "required"): label diberi * atau (opsional).
+   Catatan: flag yang tidak ada bernilai None; bila diteruskan apa adanya WTForms menulis required="None"
+   dan SEMUA kolom jadi wajib di browser. Karena itu atribut hanya ditambahkan saat flag benar. #}
+{% macro field(f, hint=none) %}
+{% set req = f.flags.required is true %}
 <div class="field{% if f.errors %} has-err{% endif %}">
-  <label for="{{ f.id }}">{{ f.label.text }}</label>
-  {{ f(class_="input", required=f.flags.required) }}
+  <label for="{{ f.id }}">{{ f.label.text }}{% if req %} <span class="req" aria-hidden="true">*</span>{% else %} <span class="opt">(opsional)</span>{% endif %}</label>
+  {% if req %}{{ f(class_="input", required=true) }}{% else %}{{ f(class_="input") }}{% endif %}
+  {% if hint %}<small class="hint">{{ hint }}</small>{% endif %}
   {% for e in f.errors %}<small class="err">{{ e }}</small>{% endfor %}
 </div>
 {% endmacro %}
+
+{% macro req_note() %}<p class="muted req-note">Kolom bertanda <span class="req">*</span> wajib diisi.</p>{% endmacro %}
 
 {% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}
 

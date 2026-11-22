@@ -3,7 +3,8 @@ import os
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VULN_KEYS = ["VULN_SQLI", "VULN_IDOR", "VULN_XSS", "VULN_PRICE", "VULN_ADMIN"]
-CATEGORIES = ["lari", "gunung", "basket", "kasual", "sandal", "futsal", "skate"]
+CATEGORIES = ["lari", "gunung", "basket", "kasual", "sandal", "futsal", "skate", "formal"]
+SIZE_MIN, SIZE_MAX = 36, 46  # batas ukuran yang dijual toko (EU)
 MIGRATIONS_DIR = os.path.join(ROOT, "migrations")
 
 

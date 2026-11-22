@@ -90,11 +90,21 @@ def cart_items():
 @bp.post("/cart/add")
 def cart_add():
     form = CartAddForm()
-    if not form.validate_on_submit() or not db.session.get(Product, form.product_id.data):
-        flash("Pilih ukuran 36-46 dan jumlah 1-10.", "err")
-        return redirect(request.referrer or url_for("shop.catalog"))
+    p = db.session.get(Product, form.product_id.data) if form.validate_on_submit() else None
+    back = url_for("shop.product", pid=p.id) if p else (request.referrer or url_for("shop.catalog"))
     cart = session.get("cart", [])
-    cart.append([form.product_id.data, form.size.data, form.qty.data])
+    if not p:
+        errs = [m for e in form.errors.values() for m in e] or ["Produk tidak ditemukan."]
+        flash("Gagal menambah ke keranjang: " + " ".join(errs), "err")
+        return redirect(back)
+    if not p.has_size(form.size.data):
+        flash(f"Ukuran {form.size.data} tidak tersedia. Pilih ukuran {p.size_min}-{p.size_max}.", "err")
+        return redirect(back)
+    in_cart = sum(q for pid, _s, q in cart if pid == p.id)
+    if in_cart + form.qty.data > p.stock:
+        flash(f"Stok tidak cukup: tersisa {p.stock}, di keranjang sudah {in_cart}.", "err")
+        return redirect(back)
+    cart.append([p.id, form.size.data, form.qty.data])
     session["cart"] = cart
     flash("Ditambahkan ke keranjang.", "ok")
     return redirect(url_for("shop.cart"))
